@@ -6,6 +6,7 @@
   "scripts": {
     "pretest": "npm run install-apks",
     "test": "wdio run wdio.conf.ts",
+    "test:ci": "wdio run wdio.conf.ci.ts",
     "install-apks": "ts-node scripts/adbInstaller.ts"
   },
   "devDependencies": {

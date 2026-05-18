@@ -76,6 +76,21 @@ export class FixtureFetcher {
   }
 
   /**
+   * True when the prod ticker has at least one fixture with IsLive=true and not completed.
+   * Used by CI scheduler gate (no fallback, no in-window).
+   */
+  static async hasLiveMatches(): Promise<boolean> {
+    const url = process.env.MOBILE_FIXTURES_URL_PROD ?? DEFAULT_FIXTURES_URL;
+    try {
+      const fixtures = await FixtureFetcher.fetchFixtures(url);
+      return fixtures.some((f) => f.IsLive === true && !f.IsCompleted);
+    } catch (error) {
+      logger.error(`hasLiveMatches: ticker fetch failed (${url}): ${error}`);
+      return false;
+    }
+  }
+
+  /**
    * Web-style folder slug `{Home}-vs-{Away}_id{id}` even when the env ticker request failed.
    */
   static async resolveFolderSlug(matchId: number, fixtures?: TickerFixtureRow[]): Promise<string> {

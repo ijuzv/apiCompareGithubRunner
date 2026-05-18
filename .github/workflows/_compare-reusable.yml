@@ -1,0 +1,176 @@
+name: Compare (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      run_web:
+        description: Run Playwright web comparison
+        type: boolean
+        default: false
+      run_mobile:
+        description: Run Appium mobile comparison (prod + uat matrix)
+        type: boolean
+        default: false
+      use_live_gate:
+        description: When true, skip all tests unless ticker has IsLive fixtures
+        type: boolean
+        default: false
+      mobile_fixtures_live_only:
+        description: Set MOBILE_FIXTURES_LIVE_ONLY=1 on mobile jobs
+        type: boolean
+        default: false
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      has_live_matches: ${{ steps.check.outputs.has_live_matches }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - id: check
+        name: Check for live matches
+        env:
+          CHECK_MATCHES_MODE: ${{ inputs.use_live_gate && 'live' || 'skip' }}
+          MOBILE_FIXTURES_URL_PROD: ${{ vars.MOBILE_FIXTURES_URL_PROD }}
+        run: npx ts-node master-scheduler/check-matches.ts
+
+  web:
+    needs: gate
+    if: inputs.run_web && needs.gate.outputs.has_live_matches == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CI: true
+      HEADLESS: true
+      WORKERS: ${{ vars.PLAYWRIGHT_WORKERS || '2' }}
+      WEB_UAT_BASE_URL: ${{ vars.WEB_UAT_BASE_URL }}
+      WEB_PROD_BASE_URL: ${{ vars.WEB_PROD_BASE_URL }}
+      WEB_MATCH_PATH_PREFIX: ${{ vars.WEB_MATCH_PATH_PREFIX || '/matches/CA:' }}
+      MOBILE_FIXTURES_URL_PROD: ${{ vars.MOBILE_FIXTURES_URL_PROD }}
+      MOBILE_FIXTURES_URL_UAT: ${{ vars.MOBILE_FIXTURES_URL_UAT }}
+      MOBILE_FALLBACK_MATCH_ID: ${{ vars.MOBILE_FALLBACK_MATCH_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm ci --prefix playwright-api-compare
+
+      - name: Install Playwright Chromium
+        working-directory: playwright-api-compare
+        run: npx playwright install chromium --with-deps
+
+      - name: Run Playwright tests
+        working-directory: playwright-api-compare
+        run: npm run test
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-api-compare/reports/html/
+            playwright-api-compare/reports/results.json
+          retention-days: 14
+
+      - name: Upload web screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-screenshots
+          path: playwright-api-compare/screenshots/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: run-logs-web
+          path: logs/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  mobile:
+    needs: gate
+    if: inputs.run_mobile && needs.gate.outputs.has_live_matches == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        mobile_env: [prod, uat]
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      CI: true
+      MOBILE_FORCE_ENV: ${{ matrix.mobile_env }}
+      MOBILE_FIXTURES_LIVE_ONLY: ${{ inputs.mobile_fixtures_live_only && '1' || '0' }}
+      MOBILE_FIXTURES_URL_PROD: ${{ vars.MOBILE_FIXTURES_URL_PROD }}
+      MOBILE_FIXTURES_URL_UAT: ${{ vars.MOBILE_FIXTURES_URL_UAT }}
+      MOBILE_FALLBACK_MATCH_ID: ${{ vars.MOBILE_FALLBACK_MATCH_ID }}
+      MOBILE_CONFIG_PROD_HOST_TEXT: ${{ vars.MOBILE_CONFIG_PROD_HOST_TEXT }}
+      MOBILE_CONFIG_UAT_HOST_SUBSTRING: ${{ vars.MOBILE_CONFIG_UAT_HOST_SUBSTRING }}
+      MOBILE_APP_PACKAGE: ${{ vars.MOBILE_APP_PACKAGE || 'au.com.cricket' }}
+      RELEASE_REPO: ${{ vars.RELEASE_REPO || 'ijuzv/apiCompareGithubRunner' }}
+      RELEASE_TAG: ${{ vars.RELEASE_TAG || 'v1' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm ci --prefix appium-mobile-compare
+
+      - name: Run mobile tests on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          target: google_apis
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect
+          script: |
+            set -e
+            echo "ANDROID_SERIAL=$ANDROID_SERIAL"
+            bash .github/workflows/scripts/download-apks.sh
+            export MOBILE_ADB_DEVICE="$ANDROID_SERIAL"
+            export MOBILE_ADB_MATCH_DEVICE_SERIALS="$ANDROID_SERIAL"
+            npm run install-apks --prefix appium-mobile-compare
+            npm run test:ci --prefix appium-mobile-compare
+
+      - name: Upload mobile screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-screenshots-${{ matrix.mobile_env }}
+          path: appium-mobile-compare/screenshots/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: run-logs-mobile-${{ matrix.mobile_env }}
+          path: logs/
+          if-no-files-found: ignore
+          retention-days: 14

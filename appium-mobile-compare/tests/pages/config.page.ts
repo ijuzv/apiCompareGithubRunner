@@ -1,4 +1,5 @@
 import { driver, $ } from '@wdio/globals';
+import { getSessionEnvName } from '../helpers/session';
 import { dismissAndroidSystemSheets } from '../helpers/ui';
 
 /** First row in apiAzureEndPoints spinner (prod). Override with MOBILE_CONFIG_PROD_HOST_TEXT. */
@@ -41,12 +42,13 @@ export class ConfigPage {
     }
 
     /**
-     * Spinner (apiAzureEndPoints): prod emulator = first option (apiv2…),
-     * UAT emulator (emulator-5556) = last option (stats-consumption…fans-uat…).
+     * Spinner (apiAzureEndPoints): prod = first option (apiv2…),
+     * UAT = last option (stats-consumption…fans-uat…).
+     * Uses MOBILE_FORCE_ENV when set (CI); else emulator-5556 = uat locally.
      */
-    async selectEnvironmentByDevice(deviceSerial: string): Promise<void> {
+    async selectEnvironmentByDevice(_deviceSerial?: string): Promise<void> {
         await dismissAndroidSystemSheets(10);
-        const isUatDevice = deviceSerial === 'emulator-5556';
+        const isUatDevice = getSessionEnvName() === 'uat';
 
         const dropdown = await $('android.widget.Spinner');
         await dropdown.waitForDisplayed({ timeout: 30000 });

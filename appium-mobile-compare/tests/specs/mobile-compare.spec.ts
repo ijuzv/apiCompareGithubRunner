@@ -37,12 +37,12 @@ describe('Appium Mobile API Compare', () => {
                 url: DEEP_LINK_CONFIG,
                 package: APP_PACKAGE,
             });
-            await ConfigPage.selectApi(deviceSerial === 'emulator-5554' ? 'v1' : 'v2');
+            await ConfigPage.selectApi(envName === 'prod' ? 'v1' : 'v2');
             return;
         }
 
         await OnboardingPage.dismissOptionalDialogs();
-        await ConfigPage.selectEnvironmentByDevice(deviceSerial);
+        await ConfigPage.selectEnvironmentByDevice();
         await OnboardingPage.completeAfterEnvironment(activeMatches.map((m) => m.id));
     });
 

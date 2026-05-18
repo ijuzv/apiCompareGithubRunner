@@ -1,0 +1,12 @@
+name: Run mobile compare
+
+on:
+  workflow_dispatch:
+
+jobs:
+  compare:
+    uses: ./.github/workflows/_compare-reusable.yml
+    with:
+      run_web: false
+      run_mobile: true
+      use_live_gate: false

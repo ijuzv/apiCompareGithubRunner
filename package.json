@@ -5,7 +5,9 @@
   "scripts": {
     "test:web": "npm run test --prefix playwright-api-compare",
     "test:mobile": "npm run test --prefix appium-mobile-compare",
-    "test:all": "concurrently \"npm run test:web\" \"npm run test:mobile\""
+    "test:all": "concurrently \"npm run test:web\" \"npm run test:mobile\"",
+    "check:live": "npx cross-env CHECK_MATCHES_MODE=live ts-node master-scheduler/check-matches.ts",
+    "check:matches": "npx ts-node master-scheduler/check-matches.ts"
   },
   "dependencies": {
     "@types/pixelmatch": "^5.2.6",
@@ -21,6 +23,7 @@
     "@types/node": "^20.12.12",
     "@vercel/ncc": "^0.38.4",
     "concurrently": "^9.2.1",
+    "cross-env": "^7.0.3",
     "ts-node": "^10.9.2",
     "typescript": "^5.4.5"
   }

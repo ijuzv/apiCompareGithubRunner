@@ -1,0 +1,15 @@
+name: Schedule IsLive compare
+
+on:
+  schedule:
+  - cron: '*/15 0-14 * * *'
+  workflow_dispatch:
+
+jobs:
+  compare:
+    uses: ./.github/workflows/_compare-reusable.yml
+    with:
+      run_web: true
+      run_mobile: true
+      use_live_gate: true
+      mobile_fixtures_live_only: true
