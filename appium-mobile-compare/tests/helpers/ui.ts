@@ -1,5 +1,5 @@
 import type { ChainablePromiseElement } from 'webdriverio';
-import { driver, $ } from '@wdio/globals';
+import { driver, $, $$ } from '@wdio/globals';
 
 /**
  * Click if the element becomes displayed within the timeout; otherwise no-op.
@@ -172,20 +172,20 @@ export async function dismissDontAllowWhileVisible(maxPasses = 12): Promise<void
  * Catches system UI that can appear anytime: "Don't Show Again" (e.g. 16 KB compatibility)
  * and "Don't allow" (notification permission, once per session). Stops when neither is found for a pass.
  */
-function matchContentProgress() {
-    return $('android=new UiSelector().className("android.widget.ProgressBar")');
-}
-
 /**
  * After a match tab tap: wait for indeterminate progress to finish, then brief settle (mirrors web `settlePage`).
  */
 export async function waitForMatchTabContentReady(options: { timeoutMs?: number } = {}): Promise<void> {
     const timeout = options.timeoutMs ?? 45_000;
     const settleMs = 900;
-    const progress = matchContentProgress();
 
     try {
-        await progress.waitForDisplayed({ timeout: 4000 });
+        const progressBars = await $$('android=new UiSelector().className("android.widget.ProgressBar")');
+        const progress = progressBars[0];
+        if (!progress || !(await progress.isDisplayed())) {
+            await driver.pause(settleMs);
+            return;
+        }
         await progress.waitForDisplayed({ timeout, reverse: true });
     } catch {
         // No spinner, or content already loaded.
