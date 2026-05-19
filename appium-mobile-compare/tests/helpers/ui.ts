@@ -101,8 +101,8 @@ function dontAllowLocators(): ChainablePromiseElement<WebdriverIO.Element>[] {
 
 const SYSTEM_SHEET_PER_LOCATOR_MS = 900;
 
-/** Notification permission — tap at most once per Appium worker/session. */
-let dontAllowHandledForSession = false;
+/** Notification permission — attempt at most once per Appium worker/session. */
+let dontAllowAttemptedForSession = false;
 
 /**
  * Tries each locator until one is clicked. Returns true if any tap succeeded.
@@ -125,6 +125,11 @@ export async function clickDontShowAgainIfAnyVisible(
 export async function clickDontAllowIfAnyVisible(
     timeoutMsPerCandidate = SYSTEM_SHEET_PER_LOCATOR_MS
 ): Promise<boolean> {
+    if (dontAllowAttemptedForSession) {
+        return false;
+    }
+    dontAllowAttemptedForSession = true;
+
     for (const el of dontAllowLocators()) {
         const ok = await clickIfDisplayed(el, {
             timeoutMs: timeoutMsPerCandidate,
@@ -151,7 +156,7 @@ export async function dismissDontShowAgainWhileVisible(maxPasses = 12): Promise<
 }
 
 export async function dismissDontAllowWhileVisible(maxPasses = 12): Promise<void> {
-    if (dontAllowHandledForSession) {
+    if (dontAllowAttemptedForSession) {
         return;
     }
     for (let i = 0; i < maxPasses; i++) {
@@ -159,7 +164,6 @@ export async function dismissDontAllowWhileVisible(maxPasses = 12): Promise<void
         if (!hit) {
             return;
         }
-        dontAllowHandledForSession = true;
         return;
     }
 }
@@ -194,11 +198,8 @@ export async function dismissAndroidSystemSheets(maxPasses = 14): Promise<void> 
     for (let i = 0; i < maxPasses; i++) {
         const showAgain = await clickDontShowAgainIfAnyVisible(SYSTEM_SHEET_PER_LOCATOR_MS);
         let denyNotif = false;
-        if (!dontAllowHandledForSession) {
+        if (!dontAllowAttemptedForSession) {
             denyNotif = await clickDontAllowIfAnyVisible(SYSTEM_SHEET_PER_LOCATOR_MS);
-            if (denyNotif) {
-                dontAllowHandledForSession = true;
-            }
         }
         if (!showAgain && !denyNotif) {
             return;
