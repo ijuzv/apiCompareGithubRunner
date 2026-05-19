@@ -141,16 +141,38 @@ jobs:
           npm ci
           npm ci --prefix appium-mobile-compare
 
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
       - name: Run mobile tests on emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 30
           arch: x86_64
           target: google_apis
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect
+          ram-size: 2048M
+          # Stable headless CI boot (matches action defaults + no snapshot save + cameras off).
+          emulator-options: >-
+            -no-window
+            -gpu swiftshader_indirect
+            -no-snapshot
+            -no-snapshot-save
+            -noaudio
+            -no-boot-anim
+            -camera-back none
+            -camera-front none
+          disable-animations: true
+          disable-spellchecker: true
+          force-avd-creation: true
+          emulator-boot-timeout: 900
           script: |
             set -e
             echo "ANDROID_SERIAL=$ANDROID_SERIAL"
+            mkdir -p appium-mobile-compare/screenshots logs
+            adb devices -l || true
             bash .github/workflows/scripts/download-apks.sh
             export MOBILE_ADB_DEVICE="$ANDROID_SERIAL"
             export MOBILE_ADB_MATCH_DEVICE_SERIALS="$ANDROID_SERIAL"
